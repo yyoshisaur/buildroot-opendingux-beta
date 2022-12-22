@@ -1,0 +1,35 @@
+From 77bcd269beccdd281789673313c4bb677e70bb12 Mon Sep 17 00:00:00 2001
+From: Sam Lantinga <slouken@libsdl.org>
+Date: Wed, 16 Nov 2022 22:23:16 -0800
+Subject: [PATCH] Allow creating an empty surface with pitch 0
+
+This fixes Maelstrom, which creates an empty staging surface and then uses it for transfer to texture
+---
+ src/video/SDL_surface.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/video/SDL_surface.c b/src/video/SDL_surface.c
+index f3ee6a4c41..5930e40551 100644
+--- a/src/video/SDL_surface.c
++++ b/src/video/SDL_surface.c
+@@ -230,7 +230,7 @@ SDL_CreateRGBSurfaceFrom(void *pixels,
+ 
+     minimalPitch = SDL_CalculatePitch(format, width, SDL_TRUE);
+ 
+-    if (pitch < 0 || ((size_t) pitch) < minimalPitch) {
++    if (pitch < 0 || (pitch > 0 && ((size_t) pitch) < minimalPitch)) {
+         SDL_InvalidParamError("pitch");
+         return NULL;
+     }
+@@ -272,7 +272,7 @@ SDL_CreateRGBSurfaceWithFormatFrom(void *pixels,
+ 
+     minimalPitch = SDL_CalculatePitch(format, width, SDL_TRUE);
+ 
+-    if (pitch < 0 || ((size_t) pitch) < minimalPitch) {
++    if (pitch < 0 || (pitch > 0 && ((size_t) pitch) < minimalPitch)) {
+         SDL_InvalidParamError("pitch");
+         return NULL;
+     }
+-- 
+2.35.1
+
