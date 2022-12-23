@@ -4,7 +4,7 @@
 #
 #############################################################
 
-PYCLOCK_VERSION = bd4a9d2
+PYCLOCK_VERSION = b555fea
 PYCLOCK_SITE = $(call github,OpenDingux,pyCLOCK,$(PYCLOCK_VERSION))
 
 ifeq ($(BR2_PACKAGE_GMENU2X),y)
