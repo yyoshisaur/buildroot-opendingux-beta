@@ -9,4 +9,4 @@ psplash_write "Setup ALSA hack..."
 /usr/bin/aplay /usr/share/alsa/dummy.wav >/dev/null 2>&1
 
 # Unmute DAC
-amixer -q -D hw:rs90audio cset "name='Master Playback Switch'" on
+amixer -q -D hw:rs90audio cset "name='DAC Playback Switch'" on
