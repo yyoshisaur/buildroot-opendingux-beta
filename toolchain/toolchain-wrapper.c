@@ -517,11 +517,6 @@ int main(int argc, char **argv)
 	} else
 		/* ccache is disabled, skip it */
 		exec_args++;
-#ifdef BR_CCACHE_BR_ONLY
-	else if (!getenv("BR_USE_CCACHE"))
-		/* Skip the ccache call */
-		exec_args++;
-#endif
 #endif
 
 	/* Debug the wrapper to see final arguments passed to the real compiler. */
