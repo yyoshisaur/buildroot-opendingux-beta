@@ -4,8 +4,10 @@ PLATFORMS=$(sed -n 's/^opkPlatforms="\(.*\)"$/\1/p' /usr/share/gmenu2x/gmenu2x.c
 
 MODEL=$(sed -n 's/.*,\(.*\)ingenic.*/\1/p' /sys/firmware/devicetree/base/compatible)
 case $MODEL in
-	rg99)
-		PLATFORMS=rg99,$PLATFORMS
+	rs90|gcw0)
+		;;
+	*)
+		PLATFORMS=$MODEL,$PLATFORMS
 		;;
 esac
 
