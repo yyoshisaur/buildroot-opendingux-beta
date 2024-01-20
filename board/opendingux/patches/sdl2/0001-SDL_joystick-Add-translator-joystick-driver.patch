@@ -1,4 +1,4 @@
-From 2a40944be71578b257823d7436fb862dbc0da414 Mon Sep 17 00:00:00 2001
+From 192d7ddbd7c9b4815296cb13bda78f8ad1f0e456 Mon Sep 17 00:00:00 2001
 From: Paul Cercueil <paul@crapouillou.net>
 Date: Sun, 18 Dec 2022 16:36:46 +0100
 Subject: [PATCH] SDL_joystick: Add "translator" joystick driver
@@ -63,25 +63,25 @@ Signed-off-by: Paul Cercueil <paul@crapouillou.net>
  include/SDL_config_winrt.h               |   1 +
  src/joystick/SDL_joystick.c              |   3 +
  src/joystick/SDL_sysjoystick.h           |   1 +
- src/joystick/translator/SDL_translator.c | 492 +++++++++++++++++++++++
- 14 files changed, 532 insertions(+)
+ src/joystick/translator/SDL_translator.c | 502 +++++++++++++++++++++++
+ 14 files changed, 542 insertions(+)
  create mode 100644 src/joystick/translator/SDL_translator.c
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 7617205..ee0f396 100644
+index b38a8bb..d2364c8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -504,6 +504,7 @@ set_option(SDL_HIDAPI              "Enable the HIDAPI subsystem" ON)
+@@ -479,6 +479,7 @@ set_option(SDL_HIDAPI              "Enable the HIDAPI subsystem" ON)
  dep_option(SDL_HIDAPI_LIBUSB       "Use libusb for low level joystick drivers" OFF SDL_HIDAPI OFF)
  dep_option(SDL_HIDAPI_JOYSTICK     "Use HIDAPI for low level joystick drivers" ON SDL_HIDAPI OFF)
  dep_option(SDL_VIRTUAL_JOYSTICK    "Enable the virtual-joystick driver" ON SDL_HIDAPI OFF)
 +dep_option(SDL_TRANSLATOR_JOYSTICK "Enable the translated-joystick driver" ON SDL_HIDAPI OFF)
+ set_option(SDL_LIBUDEV             "Enable libudev support" ON)
  set_option(SDL_ASAN                "Use AddressSanitizer to detect memory errors" OFF)
- 
- option(SDL_SHARED "Build a shared version of the library" ${SDL_SHARED_ENABLED_BY_DEFAULT})
-@@ -1038,6 +1039,11 @@ else()
-     set(HAVE_STDARG_H 1)
-     set(HAVE_STDDEF_H 1)
+ option_string(SDL_VENDOR_INFO      "Vendor name and/or version to add to SDL_REVISION" "")
+@@ -973,6 +974,11 @@ if(SDL_ASSEMBLY)
+     endif()
+     check_include_file("immintrin.h" HAVE_IMMINTRIN_H)
    endif()
 +  if(SDL_TRANSLATOR_JOYSTICK)
 +  set(SDL_JOYSTICK_TRANSLATOR 1)
@@ -90,12 +90,12 @@ index 7617205..ee0f396 100644
 +  endif()
  endif()
  
- 
+ # TODO: Can't deactivate on FreeBSD? w/o LIBC, SDL_stdinc.h can't define
 diff --git a/configure.ac b/configure.ac
-index 2dacf44..5a2ca21 100644
+index 5588958..e3528b6 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -3707,6 +3707,19 @@ CheckVirtualJoystick()
+@@ -3742,6 +3742,19 @@ CheckVirtualJoystick()
      fi
  }
  
@@ -114,8 +114,8 @@ index 2dacf44..5a2ca21 100644
 +
  dnl Do this on all platforms, before everything else (other things might want to override it).
  CheckWarnAll
- CheckNoStrictAliasing
-@@ -4623,6 +4636,9 @@ esac
+ CheckUnusedLocalTypedefs
+@@ -4677,6 +4690,9 @@ esac
  dnl Permit use of virtual joystick APIs on any platform (subject to configure options)
  CheckVirtualJoystick
  
@@ -125,7 +125,7 @@ index 2dacf44..5a2ca21 100644
  # Check whether to install sdl2-config
  AC_MSG_CHECKING(whether to install sdl2-config)
  AC_ARG_ENABLE([sdl2-config],
-@@ -4885,6 +4901,11 @@ if test x$have_joystick_virtual = xyes; then
+@@ -4947,6 +4963,11 @@ if test x$have_joystick_virtual = xyes; then
  else
      SUMMARY="${SUMMARY}Enable virtual joystick APIs : NO\n"
  fi
@@ -138,10 +138,10 @@ index 2dacf44..5a2ca21 100644
      SUMMARY="${SUMMARY}Using libsamplerate : YES\n"
  else
 diff --git a/include/SDL_config.h.cmake b/include/SDL_config.h.cmake
-index 204a12e..0697ad0 100644
+index 35923d0..602cd45 100644
 --- a/include/SDL_config.h.cmake
 +++ b/include/SDL_config.h.cmake
-@@ -349,6 +349,7 @@
+@@ -351,6 +351,7 @@
  #cmakedefine SDL_JOYSTICK_RAWINPUT @SDL_JOYSTICK_RAWINPUT@
  #cmakedefine SDL_JOYSTICK_EMSCRIPTEN @SDL_JOYSTICK_EMSCRIPTEN@
  #cmakedefine SDL_JOYSTICK_VIRTUAL @SDL_JOYSTICK_VIRTUAL@
@@ -150,10 +150,10 @@ index 204a12e..0697ad0 100644
  #cmakedefine SDL_JOYSTICK_PSP @SDL_JOYSTICK_PSP@
  #cmakedefine SDL_JOYSTICK_PS2 @SDL_JOYSTICK_PS2@
 diff --git a/include/SDL_config.h.in b/include/SDL_config.h.in
-index 56b5302..e6f0b83 100644
+index d6460b7..719a4a0 100644
 --- a/include/SDL_config.h.in
 +++ b/include/SDL_config.h.in
-@@ -332,6 +332,7 @@
+@@ -333,6 +333,7 @@
  #undef SDL_JOYSTICK_RAWINPUT
  #undef SDL_JOYSTICK_EMSCRIPTEN
  #undef SDL_JOYSTICK_VIRTUAL
@@ -162,10 +162,10 @@ index 56b5302..e6f0b83 100644
  #undef SDL_HAPTIC_ANDROID
  #undef SDL_HAPTIC_LINUX
 diff --git a/include/SDL_config_android.h b/include/SDL_config_android.h
-index 5a9cfc0..1faa2fa 100644
+index d88c026..58ef5fb 100644
 --- a/include/SDL_config_android.h
 +++ b/include/SDL_config_android.h
-@@ -151,6 +151,7 @@
+@@ -152,6 +152,7 @@
  #define SDL_JOYSTICK_ANDROID    1
  #define SDL_JOYSTICK_HIDAPI     1
  #define SDL_JOYSTICK_VIRTUAL    1
@@ -174,10 +174,10 @@ index 5a9cfc0..1faa2fa 100644
  
  /* Enable sensor driver */
 diff --git a/include/SDL_config_iphoneos.h b/include/SDL_config_iphoneos.h
-index 48f9f9f..a4ea3ef 100644
+index 02011c4..9f55cae 100644
 --- a/include/SDL_config_iphoneos.h
 +++ b/include/SDL_config_iphoneos.h
-@@ -150,6 +150,7 @@
+@@ -151,6 +151,7 @@
  /*#define SDL_JOYSTICK_HIDAPI 1*/
  #define SDL_JOYSTICK_MFI 1
  #define SDL_JOYSTICK_VIRTUAL    1
@@ -186,10 +186,10 @@ index 48f9f9f..a4ea3ef 100644
  #ifdef __TVOS__
  #define SDL_SENSOR_DUMMY    1
 diff --git a/include/SDL_config_macosx.h b/include/SDL_config_macosx.h
-index 023ecaa..9404257 100644
+index d7ad6cc..b91a894 100644
 --- a/include/SDL_config_macosx.h
 +++ b/include/SDL_config_macosx.h
-@@ -160,6 +160,7 @@
+@@ -161,6 +161,7 @@
  #define SDL_JOYSTICK_HIDAPI 1
  #define SDL_JOYSTICK_IOKIT  1
  #define SDL_JOYSTICK_VIRTUAL    1
@@ -198,7 +198,7 @@ index 023ecaa..9404257 100644
  
  /* The MFI controller support requires ARC Objective C runtime */
 diff --git a/include/SDL_config_os2.h b/include/SDL_config_os2.h
-index c86769d..76a471f 100644
+index 2effe1a..0a917f6 100644
 --- a/include/SDL_config_os2.h
 +++ b/include/SDL_config_os2.h
 @@ -48,6 +48,7 @@
@@ -210,7 +210,7 @@ index c86769d..76a471f 100644
  /* Enable OpenGL support */
  /* #undef SDL_VIDEO_OPENGL */
 diff --git a/include/SDL_config_pandora.h b/include/SDL_config_pandora.h
-index 01bbf49..1c5d22c 100644
+index c74fa0c..89d9ec5 100644
 --- a/include/SDL_config_pandora.h
 +++ b/include/SDL_config_pandora.h
 @@ -120,6 +120,7 @@
@@ -222,10 +222,10 @@ index 01bbf49..1c5d22c 100644
  
  #define SDL_SENSOR_DUMMY 1
 diff --git a/include/SDL_config_windows.h b/include/SDL_config_windows.h
-index 3ad3e8f..0bc20b6 100644
+index 01322c1..6dedd7c 100644
 --- a/include/SDL_config_windows.h
 +++ b/include/SDL_config_windows.h
-@@ -279,6 +279,7 @@ typedef unsigned int uintptr_t;
+@@ -259,6 +259,7 @@ typedef unsigned int uintptr_t;
  #define SDL_JOYSTICK_RAWINPUT   1
  #endif
  #define SDL_JOYSTICK_VIRTUAL    1
@@ -234,10 +234,10 @@ index 3ad3e8f..0bc20b6 100644
  #define SDL_JOYSTICK_WGI    1
  #endif
 diff --git a/include/SDL_config_winrt.h b/include/SDL_config_winrt.h
-index 5569403..bff67f7 100644
+index 8efde90..24e3057 100644
 --- a/include/SDL_config_winrt.h
 +++ b/include/SDL_config_winrt.h
-@@ -209,6 +209,7 @@ typedef unsigned int uintptr_t;
+@@ -166,6 +166,7 @@
  #define SDL_HAPTIC_DISABLED 1
  #else
  #define SDL_JOYSTICK_VIRTUAL    1
@@ -246,7 +246,7 @@ index 5569403..bff67f7 100644
  #define SDL_JOYSTICK_WGI    1
  #define SDL_HAPTIC_DISABLED 1
 diff --git a/src/joystick/SDL_joystick.c b/src/joystick/SDL_joystick.c
-index 26b017b..c4f1a3e 100644
+index 834e83d..f9b76e7 100644
 --- a/src/joystick/SDL_joystick.c
 +++ b/src/joystick/SDL_joystick.c
 @@ -96,6 +96,9 @@ static SDL_JoystickDriver *SDL_joystick_drivers[] = {
@@ -260,10 +260,10 @@ index 26b017b..c4f1a3e 100644
      &SDL_VIRTUAL_JoystickDriver,
  #endif
 diff --git a/src/joystick/SDL_sysjoystick.h b/src/joystick/SDL_sysjoystick.h
-index d5c8c0e..97dedf2 100644
+index a93fa66..9e795c6 100644
 --- a/src/joystick/SDL_sysjoystick.h
 +++ b/src/joystick/SDL_sysjoystick.h
-@@ -227,6 +227,7 @@ extern SDL_JoystickDriver SDL_RAWINPUT_JoystickDriver;
+@@ -241,6 +241,7 @@ extern SDL_JoystickDriver SDL_RAWINPUT_JoystickDriver;
  extern SDL_JoystickDriver SDL_IOS_JoystickDriver;
  extern SDL_JoystickDriver SDL_LINUX_JoystickDriver;
  extern SDL_JoystickDriver SDL_VIRTUAL_JoystickDriver;
@@ -273,10 +273,10 @@ index d5c8c0e..97dedf2 100644
  extern SDL_JoystickDriver SDL_WINMM_JoystickDriver;
 diff --git a/src/joystick/translator/SDL_translator.c b/src/joystick/translator/SDL_translator.c
 new file mode 100644
-index 0000000..75e3f6e
+index 0000000..2e6cbbc
 --- /dev/null
 +++ b/src/joystick/translator/SDL_translator.c
-@@ -0,0 +1,492 @@
+@@ -0,0 +1,502 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 2021 Paul Cercueil <paul@crapouillou.net>
@@ -581,11 +581,14 @@ index 0000000..75e3f6e
 +
 +static SDL_JoystickGUID TRANSLATOR_JoystickGetDeviceGUID(int device_index)
 +{
-+    SDL_JoystickGUID guid;
-+    /* the GUID is just the first 16 chars of the name for now */
 +    const char *name = TRANSLATOR_JoystickGetDeviceName(device_index);
++    SDL_JoystickGUID guid;
++    Uint16 *guid16 = (Uint16 *)guid.data;
++
 +    SDL_zero(guid);
-+    SDL_memcpy(&guid, name, SDL_min(sizeof(guid), SDL_strlen(name)));
++    *guid16++ = SDL_SwapLE16(SDL_HARDWARE_BUS_UNKNOWN);
++    *guid16++ = SDL_SwapLE16(SDL_crc16(0, name, SDL_strlen(name)));
++    SDL_memcpy((char*)guid16, name, SDL_min(sizeof(guid) - 4, SDL_strlen(name)));
 +    return guid;
 +}
 +
@@ -743,32 +746,39 @@ index 0000000..75e3f6e
 +    return SDL_Unsupported();
 +}
 +
++static const char *
++TRANSLATOR_JoystickGetDevicePath(int device_index)
++{
++    return NULL;
++}
++
 +SDL_JoystickDriver SDL_TRANSLATOR_JoystickDriver =
 +{
-+    TRANSLATOR_JoystickInit,
-+    TRANSLATOR_JoystickGetCount,
-+    TRANSLATOR_JoystickDetect,
-+    TRANSLATOR_JoystickGetDeviceName,
-+    TRANSLATOR_JoystickGetDevicePlayerIndex,
-+    TRANSLATOR_JoystickSetDevicePlayerIndex,
-+    TRANSLATOR_JoystickGetDeviceGUID,
-+    TRANSLATOR_JoystickGetDeviceInstanceID,
-+    TRANSLATOR_JoystickOpen,
-+    TRANSLATOR_JoystickRumble,
-+    TRANSLATOR_JoystickRumbleTriggers,
-+    TRANSLATOR_JoystickHasLED,
-+    TRANSLATOR_JoystickSetLED,
-+    TRANSLATOR_JoystickSendEffect,
-+    TRANSLATOR_JoystickSetSensorsEnabled,
-+    TRANSLATOR_JoystickUpdate,
-+    TRANSLATOR_JoystickClose,
-+    TRANSLATOR_JoystickQuit,
-+    TRANSLATOR_JoystickGetGamepadMapping
++    .Init = TRANSLATOR_JoystickInit,
++    .GetCount = TRANSLATOR_JoystickGetCount,
++    .Detect = TRANSLATOR_JoystickDetect,
++    .GetDeviceName = TRANSLATOR_JoystickGetDeviceName,
++    .GetDevicePath = TRANSLATOR_JoystickGetDevicePath,
++    .GetDevicePlayerIndex = TRANSLATOR_JoystickGetDevicePlayerIndex,
++    .SetDevicePlayerIndex = TRANSLATOR_JoystickSetDevicePlayerIndex,
++    .GetDeviceGUID = TRANSLATOR_JoystickGetDeviceGUID,
++    .GetDeviceInstanceID = TRANSLATOR_JoystickGetDeviceInstanceID,
++    .Open = TRANSLATOR_JoystickOpen,
++    .Rumble = TRANSLATOR_JoystickRumble,
++    .RumbleTriggers = TRANSLATOR_JoystickRumbleTriggers,
++    .GetCapabilities = TRANSLATOR_JoystickHasLED,
++    .SetLED = TRANSLATOR_JoystickSetLED,
++    .SendEffect = TRANSLATOR_JoystickSendEffect,
++    .SetSensorsEnabled = TRANSLATOR_JoystickSetSensorsEnabled,
++    .Update = TRANSLATOR_JoystickUpdate,
++    .Close = TRANSLATOR_JoystickClose,
++    .Quit = TRANSLATOR_JoystickQuit,
++    .GetGamepadMapping = TRANSLATOR_JoystickGetGamepadMapping
 +};
 +
 +#endif /* SDL_JOYSTICK_TRANSLATOR */
 +
 +/* vi: set ts=4 sw=4 expandtab: */
 -- 
-2.35.1
+2.30.2
 
