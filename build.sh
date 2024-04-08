@@ -37,9 +37,8 @@ fi
 
 # Perform the build.
 echo "Starting build..."
-PARALLELISM=$(getconf _NPROCESSORS_ONLN)
 for target in $TARGETS; do
-	nice ${TOP_MAKE_COMMAND} "$target" BR2_SDK_PREFIX=${CONFIG}-toolchain O=output/${CONFIG} -j $PARALLELISM
+	nice ${TOP_MAKE_COMMAND} "$target" BR2_SDK_PREFIX=${CONFIG}-toolchain O=output/${CONFIG}
 done
 
 if [ "${TARGETS}" = sdk ] ; then
